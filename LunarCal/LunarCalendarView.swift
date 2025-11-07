@@ -7,14 +7,16 @@ struct LunarCalendarView: View {
         sortDescriptors: [NSSortDescriptor(keyPath: \Schedule.date, ascending: true)],
         animation: .default
     ) private var schedules: FetchedResults<Schedule>
-
+    
     @State private var currentDate = Date()
+    @Binding var showLunar: Bool  // 추가
+    
     private let calendar = Calendar.current
-
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                //  전체 스와이프 감지용 투명 레이어
+                // 전체 스와이프 감지용 투명 레이어
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(
@@ -31,9 +33,8 @@ struct LunarCalendarView: View {
                                 }
                             }
                     )
-
                 // 실제 MonthView
-                MonthView(currentDate: $currentDate, schedules: schedules)
+                MonthView(currentDate: $currentDate, schedules: schedules, showLunar: showLunar)
             }
         }
     }
@@ -41,5 +42,6 @@ struct LunarCalendarView: View {
 
 #Preview {
     let context = PersistenceController.preview.container.viewContext
-    return LunarCalendarView().environment(\.managedObjectContext, context)
+    return LunarCalendarView(showLunar: .constant(true))
+        .environment(\.managedObjectContext, context)
 }

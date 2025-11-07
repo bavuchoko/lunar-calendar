@@ -7,9 +7,10 @@ struct CalendarCellView: View {
     var schedules: [Schedule]
     var isSelected: Bool
     var cellHeight: CGFloat
-
+    var showLunar: Bool  // 추가
+    
     private let calendar = Calendar.current
-
+    
     var body: some View {
         VStack(spacing: 2) {
             Text("\(calendar.component(.day, from: date))")
@@ -19,11 +20,14 @@ struct CalendarCellView: View {
                     ? colorForWeekday()
                     : .gray.opacity(0.4)
                 )
-
-            Text(CalendarHelper.shared.lunarDayString(from: date))
-                .font(.caption2)
-                .foregroundColor(.gray.opacity(0.6))
-
+            
+            // 음력 표시 조건부 렌더링
+            if showLunar {
+                Text(CalendarHelper.shared.lunarDayString(from: date))
+                    .font(.caption2)
+                    .foregroundColor(.gray.opacity(0.6))
+            }
+            
             VStack(alignment: .leading, spacing: 1) {
                 ForEach(schedules.prefix(3), id: \.id) { s in
                     Text(s.title ?? "")
@@ -31,7 +35,6 @@ struct CalendarCellView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-
                 if schedules.count > 3 {
                     Text("+\(schedules.count - 3)개")
                         .font(.system(size: 8))
@@ -45,7 +48,7 @@ struct CalendarCellView: View {
         .background(isSelected ? Color.red.opacity(0.1) : Color.clear)
         .cornerRadius(6)
     }
-
+    
     func colorForWeekday() -> Color {
         let w = calendar.component(.weekday, from: date)
         if w == 1 { return .red }
