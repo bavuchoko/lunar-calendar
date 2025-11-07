@@ -1,24 +1,14 @@
-//
-//  ContentView.swift
-//  LunarCal
-//
-//  Created by 박종수 on 11/5/25.
-//
-
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationStack {
+            CalendarContainerView()
+                .navigationTitle("달력")
+                .navigationBarTitleDisplayMode(.inline)
         }
-        .padding()
     }
 }
-
 #Preview {
     ContentView()
 }
