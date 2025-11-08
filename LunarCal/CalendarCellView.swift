@@ -38,7 +38,7 @@ struct CalendarCellView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(schedules.prefix(3), id: \.id) { s in
                         Text(s.title ?? "")
-                            .font(.system(size: 9))
+                            .font(.system(size: 8))
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }
@@ -47,7 +47,7 @@ struct CalendarCellView: View {
                             .font(.system(size: 8))
                             .foregroundColor(.gray)
                     }
-                }
+                }.frame(maxWidth: .infinity)
             }
         }
         .frame(maxWidth: .infinity)

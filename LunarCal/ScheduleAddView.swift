@@ -25,9 +25,21 @@ struct ScheduleAddView: View {
                         .font(.headline)
                 }
 
-                Section(header: Text("기본 정보")) {
+                Section(header: Text("제목")) {
                     TextField("제목을 입력하세요", text: $title)
-                    TextField("메모를 입력하세요", text: $memo)
+                }
+                
+                Section(header: Text("메모")) {
+                    ZStack(alignment: .topLeading) {
+                        if memo.isEmpty {
+                            Text("메모를 입력하세요")
+                                .foregroundColor(.gray.opacity(0.5))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 8)
+                        }
+                        TextEditor(text: $memo)
+                            .frame(minHeight: 100)
+                    }
                 }
 
                 Section(header: Text("시간")) {
@@ -130,4 +142,8 @@ struct ScheduleAddView: View {
             }
         }
     }
+}
+#Preview {
+    ScheduleAddView(selectedDate: Date())
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
