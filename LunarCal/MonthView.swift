@@ -4,7 +4,8 @@ import CoreData
 struct MonthView: View {
     @Binding var currentDate: Date
     var schedules: FetchedResults<Schedule>
-    var showLunar: Bool  // 추가
+    var showLunar: Bool
+    @ObservedObject var holidayManager: HolidayManager
     
     @Environment(\.managedObjectContext) private var viewContext
     @State private var selectedDate: Date? = nil
@@ -12,38 +13,44 @@ struct MonthView: View {
     private let calendar = Calendar.current
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             // 월 제목
             Text(monthTitle(for: currentDate))
                 .font(.headline)
+                .padding(.top, 16)
                 .padding(.bottom, 8)
             
             // 요일 헤더
             dayOfWeekHeader()
+                .padding(.bottom, 4)
             
             // 날짜 그리드
-            GeometryReader { geo in
-                let cellHeight = geo.size.height / 6
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 0) {
-                    ForEach(daysInMonth(for: currentDate), id: \.self) { date in
-                        NavigationLink(destination:
-                            ScheduleListView(selectedDate: date)
-                                .environment(\.managedObjectContext, viewContext)
-                        ) {
-                            CalendarCellView(
-                                date: date,
-                                month: currentDate,
-                                schedules: schedulesForDate(date),
-                                isSelected: calendar.isDate(date, inSameDayAs: selectedDate ?? Date()),
-                                cellHeight: cellHeight,
-                                showLunar: showLunar  // 추가
-                            )
-                        }
-                        .buttonStyle(.plain)
+            let dates = daysInMonth(for: currentDate)
+            let rowCount = dates.count / 7
+            let cellHeight: CGFloat = 80
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 0) {
+                ForEach(Array(dates.enumerated()), id: \.offset) { index, date in
+                    // NavigationLink를 CalendarCellView 밖에서 감싸기
+                    NavigationLink(destination:
+                        ScheduleListView(selectedDate: date)
+                            .environment(\.managedObjectContext, viewContext)
+                    ) {
+                        CalendarCellView(
+                            date: date,
+                            month: currentDate,
+                            schedules: schedulesForDate(date),
+                            isSelected: calendar.isDate(date, inSameDayAs: selectedDate ?? Date()),
+                            cellHeight: cellHeight,
+                            showLunar: showLunar,
+                            holidayManager: holidayManager
+                        )
+                        .contentShape(Rectangle())  // 전체 영역 클릭 가능
                     }
+                    .buttonStyle(.plain)  // 기본 버튼 스타일 제거
                 }
-                .frame(minHeight: 300)
             }
+            .frame(height: CGFloat(rowCount) * cellHeight)
             .padding(.horizontal)
         }
     }
@@ -73,6 +80,7 @@ struct MonthView: View {
                     .foregroundColor(day == "일" ? .red : (day == "토" ? .blue : .primary))
             }
         }
+        .padding(.horizontal)
     }
     
     private func daysInMonth(for date: Date) -> [Date] {

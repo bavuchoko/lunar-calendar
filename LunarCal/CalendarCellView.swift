@@ -7,38 +7,46 @@ struct CalendarCellView: View {
     var schedules: [Schedule]
     var isSelected: Bool
     var cellHeight: CGFloat
-    var showLunar: Bool  // 추가
+    var showLunar: Bool
+    var holidayManager: HolidayManager
     
     private let calendar = Calendar.current
+    private let helper = CalendarHelper.shared
     
     var body: some View {
         VStack(spacing: 2) {
+            // 날짜
             Text("\(calendar.component(.day, from: date))")
                 .font(.headline)
-                .foregroundColor(
-                    calendar.isDate(date, equalTo: month, toGranularity: .month)
-                    ? colorForWeekday()
-                    : .gray.opacity(0.4)
-                )
+                .foregroundColor(colorForDate())
             
-            // 음력 표시 조건부 렌더링
-            if showLunar {
-                Text(CalendarHelper.shared.lunarDayString(from: date))
-                    .font(.caption2)
-                    .foregroundColor(.gray.opacity(0.6))
+            // 공휴일 이름 또는 음력 (현재 달만 표시)
+            if calendar.isDate(date, equalTo: month, toGranularity: .month) {
+                if let holidayName = holidayManager.holidayName(for: date) {
+                    Text(holidayName)
+                        .font(.caption2)
+                        .foregroundColor(.red.opacity(0.8))
+                } else if showLunar {
+                    Text(helper.lunarDayString(from: date))
+                        .font(.caption2)
+                        .foregroundColor(.gray.opacity(0.6))
+                }
             }
             
-            VStack(alignment: .leading, spacing: 1) {
-                ForEach(schedules.prefix(3), id: \.id) { s in
-                    Text(s.title ?? "")
-                        .font(.system(size: 9))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                if schedules.count > 3 {
-                    Text("+\(schedules.count - 3)개")
-                        .font(.system(size: 8))
-                        .foregroundColor(.gray)
+            // 일정 표시 (현재 달만)
+            if calendar.isDate(date, equalTo: month, toGranularity: .month) {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(schedules.prefix(3), id: \.id) { s in
+                        Text(s.title ?? "")
+                            .font(.system(size: 9))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    if schedules.count > 3 {
+                        Text("+\(schedules.count - 3)개")
+                            .font(.system(size: 8))
+                            .foregroundColor(.gray)
+                    }
                 }
             }
         }
@@ -49,10 +57,21 @@ struct CalendarCellView: View {
         .cornerRadius(6)
     }
     
-    func colorForWeekday() -> Color {
+    func colorForDate() -> Color {
+        // 다른 달 날짜는 회색
+        guard calendar.isDate(date, equalTo: month, toGranularity: .month) else {
+            return .gray.opacity(0.3)
+        }
+        
+        // 공휴일이면 빨간색
+        if holidayManager.isHoliday(date) {
+            return .red
+        }
+        
+        // 주말 색상 처리
         let w = calendar.component(.weekday, from: date)
-        if w == 1 { return .red }
-        if w == 7 { return .blue }
+        if w == 1 { return .red }      // 일요일
+        if w == 7 { return .blue }     // 토요일
         return .primary
     }
 }

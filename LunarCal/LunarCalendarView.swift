@@ -9,39 +9,47 @@ struct LunarCalendarView: View {
     ) private var schedules: FetchedResults<Schedule>
     
     @State private var currentDate = Date()
-    @Binding var showLunar: Bool  // 추가
+    @Binding var showLunar: Bool
+    @ObservedObject var holidayManager: HolidayManager
     
     private let calendar = Calendar.current
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                // 전체 스와이프 감지용 투명 레이어
-                Color.clear
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 20)
-                            .onEnded { value in
-                                withAnimation(.easeInOut) {
-                                    if value.translation.height < -50 {
-                                        // 위로 스와이프 → 다음 달
-                                        currentDate = calendar.date(byAdding: .month, value: 1, to: currentDate)!
-                                    } else if value.translation.height > 50 {
-                                        // 아래로 스와이프 → 이전 달
-                                        currentDate = calendar.date(byAdding: .month, value: -1, to: currentDate)!
-                                    }
+        VStack(spacing: 0) {
+            MonthView(
+                currentDate: $currentDate,
+                schedules: schedules,
+                showLunar: showLunar,
+                holidayManager: holidayManager
+            )
+            .simultaneousGesture(  // ⭐ simultaneousGesture로 변경
+                DragGesture(minimumDistance: 30)  // ⭐ minimumDistance 증가
+                    .onEnded { value in
+                        withAnimation(.easeInOut) {
+                            // 세로 스와이프만 감지 (가로 스와이프 무시)
+                            if abs(value.translation.height) > abs(value.translation.width) {
+                                if value.translation.height < -50 {
+                                    // 위로 스와이프 → 다음 달
+                                    currentDate = calendar.date(byAdding: .month, value: 1, to: currentDate)!
+                                } else if value.translation.height > 50 {
+                                    // 아래로 스와이프 → 이전 달
+                                    currentDate = calendar.date(byAdding: .month, value: -1, to: currentDate)!
                                 }
                             }
-                    )
-                // 실제 MonthView
-                MonthView(currentDate: $currentDate, schedules: schedules, showLunar: showLunar)
-            }
+                        }
+                    }
+            )
         }
     }
 }
 
 #Preview {
     let context = PersistenceController.preview.container.viewContext
-    return LunarCalendarView(showLunar: .constant(true))
+    return NavigationStack {
+        LunarCalendarView(
+            showLunar: .constant(false),
+            holidayManager: HolidayManager()
+        )
         .environment(\.managedObjectContext, context)
+    }
 }
