@@ -1,0 +1,11 @@
+# 로컬 전용 (키 등). 복사: cp LunarCal/Info.plist.example LunarCal/Info.plist
+LunarCal/Info.plist
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+DerivedData/
+
+# SwiftPM
+.build/
