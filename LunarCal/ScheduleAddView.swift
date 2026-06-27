@@ -15,6 +15,7 @@ struct ScheduleAddView: View {
 
     @State private var alertEnabled: Bool = false
     @State private var alertTime: Date = Date()
+    @State private var selectedCategoryId: UUID?
 
     private let repeatOptions = ["없음", "매주", "매월", "매년 (양력)", "매년 (음력)"]
 
@@ -42,6 +43,8 @@ struct ScheduleAddView: View {
                             .frame(minHeight: 100)
                     }
                 }
+
+                ScheduleCategoryPickerSection(selectedCategoryId: $selectedCategoryId)
 
                 Section(header: Text("반복")) {
                     Picker("반복 옵션", selection: $repeatType) {
@@ -150,6 +153,7 @@ struct ScheduleAddView: View {
             s.isFromRepeat = false
             s.repeatId = nil
             s.repeatRule = nil
+            s.category = Schedule.category(with: selectedCategoryId, in: viewContext)
 
             if alertEnabled {
                 NotificationManager.shared.scheduleNotification(for: s)
@@ -205,6 +209,7 @@ struct ScheduleAddView: View {
             s.isFromRepeat = false
             s.repeatId = nil
             s.repeatRule = nil
+            s.category = Schedule.category(with: selectedCategoryId, in: viewContext)
 
             if alertEnabled {
                 NotificationManager.shared.scheduleNotification(for: s)
@@ -235,6 +240,7 @@ struct ScheduleAddView: View {
         s.isFromRepeat = true
         s.repeatId = rule.id
         s.repeatRule = rule
+        s.category = Schedule.category(with: selectedCategoryId, in: viewContext)
 
         rule.addToOccurrences(s)
 

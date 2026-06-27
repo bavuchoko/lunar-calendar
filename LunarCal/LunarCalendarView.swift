@@ -15,6 +15,7 @@ struct LunarCalendarView: View {
     @Binding var showLunar: Bool
     @ObservedObject var holidayManager: HolidayManager
     @Binding var selectedDate: Date
+    @Binding var scheduleNavigationDay: ScheduleDayNavigation?
 
     private let calendar = Calendar.current
     @State private var transitionDirection: Int = 0 // 1: next month (swipe up), -1: prev month (swipe down)
@@ -24,6 +25,7 @@ struct LunarCalendarView: View {
             ZStack {
                 MonthView(
                     currentDate: $currentDate,
+                    scheduleNavigationDay: $scheduleNavigationDay,
                     schedules: schedules,
                     showLunar: showLunar,
                     holidayManager: holidayManager
@@ -52,6 +54,7 @@ struct LunarCalendarView: View {
                         }
                     }
             )
+            .clipped()
         }
     }
 
@@ -85,7 +88,8 @@ struct LunarCalendarView: View {
             currentDate: .constant(Date()),
             showLunar: .constant(false),
             holidayManager: HolidayManager(),
-            selectedDate: .constant(Date())
+            selectedDate: .constant(Date()),
+            scheduleNavigationDay: .constant(nil)
         )
         .environment(\.managedObjectContext, context)
     }

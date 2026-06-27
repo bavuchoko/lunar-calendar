@@ -181,11 +181,10 @@ struct SwipeableScheduleRow: View {
             NavigationLink(destination: ScheduleEditView(schedule: schedule)) {
                 ScheduleKanbanCard(
                     title: schedule.title ?? "제목 없음",
-                    subtitle: scheduleSubtitle(schedule),
                     shortDate: scheduleShortDate(schedule),
-                    primaryTag: schedulePrimaryTag(schedule),
-                    secondaryTag: scheduleSecondaryTag(schedule),
-                    paletteIndex: paletteIndex
+                    primaryTag: schedule.cardPrimaryTag,
+                    secondaryTag: schedule.cardSecondaryTag,
+                    tagHex: schedule.cardTagHex
                 )
             }
             .buttonStyle(.plain)
@@ -215,21 +214,6 @@ struct SwipeableScheduleRow: View {
                     }
             )
         }
-    }
-
-    private func scheduleSubtitle(_ s: Schedule) -> String {
-        guard let d = s.date else { return "" }
-        let dayFormatter = DateFormatter()
-        dayFormatter.locale = Locale(identifier: "ko_KR")
-        dayFormatter.dateFormat = "yyyy년 M월 d일 (E)"
-        let base = dayFormatter.string(from: d)
-        if s.alertEnabled, let at = s.alertTime {
-            let timeFormatter = DateFormatter()
-            timeFormatter.locale = Locale(identifier: "ko_KR")
-            timeFormatter.dateFormat = "a h:mm"
-            return "\(base) · 알림 \(timeFormatter.string(from: at))"
-        }
-        return base
     }
 
     private func scheduleShortDate(_ s: Schedule) -> String {

@@ -39,10 +39,12 @@ struct CalendarCellView: View {
             if calendar.isDate(date, equalTo: month, toGranularity: .month) {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(schedules.prefix(3), id: \.id) { s in
-                        Text(s.title ?? "")
-                            .font(.system(size: 8))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                        TagChipView(
+                            text: s.title ?? "",
+                            hex: s.category?.colorHex,
+                            fontSize: 8,
+                            compact: true
+                        )
                     }
                     if schedules.count > 3 {
                         Text("+\(schedules.count - 3)개")

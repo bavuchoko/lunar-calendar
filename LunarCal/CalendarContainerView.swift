@@ -17,152 +17,100 @@ struct CalendarContainerView: View {
     @State private var selectedDate: Date = Date()
     @State private var currentDate: Date = Date()
 
-    // 일정 목록 시트
-    @State private var showScheduleList = false
     @State private var showTools = false
+    @State private var showScheduleList = false
+    @State private var scheduleNavigationDay: ScheduleDayNavigation?
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                LunarCalendarView(
+                    currentDate: $currentDate,
+                    showLunar: $showLunar,
+                    holidayManager: holidayManager,
+                    selectedDate: $selectedDate,
+                    scheduleNavigationDay: $scheduleNavigationDay
+                )
 
-                    // 🔼 상단 헤더: "< 2025"
-                    HStack {
-                        // 왼쪽: 연도 버튼 (YearMonthPicker 열기)
-                        Button {
-                            // 버튼 눌렀을 때 상태를 오늘로 리셋
-                            let today = Date()
-                            currentYear  = Calendar.current.component(.year, from: today)
-                            currentMonth = Calendar.current.component(.month, from: today)
-                            currentDate  = today
-                            selectedDate = today
+                Spacer(minLength: 0)
 
-                            showingYearMonthPicker = true
-                        } label: {
-                            HStack(spacing: 2) {
-                                Image(systemName: "chevron.left")
-                                Text(String(currentYear))
-                            }
-                            .font(.system(size: 17, weight: .semibold))
-                            .frame(width: 88, alignment: .leading)
-                        }
-
-                        Spacer()
-
-                        Button("오늘") {
-                            let today = Date()
-                            currentYear  = Calendar.current.component(.year, from: today)
-                            currentMonth = Calendar.current.component(.month, from: today)
-                            currentDate  = today
-                            selectedDate = today
-                        }
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.red)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-
-                    // 🔽 달력 본문
-                    LunarCalendarView(
-                        currentDate: $currentDate,
-                        showLunar: $showLunar,
-                        holidayManager: holidayManager,
-                        selectedDate: $selectedDate
+                if !purchaseManager.isAdsRemoved {
+                    BannerAdView(
+                        adUnitID: "ca-app-pub-8998366944335616/8089042227"
                     )
-
-                    Spacer(minLength: 0)
-
-                    // 🔽 광고 영역
-                    if !purchaseManager.isAdsRemoved {
-                        BannerAdView(
-                            adUnitID: "ca-app-pub-8998366944335616/8089042227"
-                        )
-                        .frame(height: 60)
-                    }
-
-                    // 🔽 하단 버튼 바 (공휴일 / 음력)
-                    HStack {
-                        Spacer()
-
-                        // 공휴일 → 목록 화면(새로고침은 목록 내 아이콘)
-                        Button {
-                            showHolidayList = true
-                        } label: {
-                            VStack {
-                                Image(systemName: "party.popper")
-                                Text("공휴일").font(.caption2)
-                            }
-                        }
-
-                        Spacer()
-
-                        // 음력 토글 버튼
-                        Button {
-                            withAnimation {
-                                showLunar.toggle()
-                            }
-                        } label: {
-                            VStack {
-                                Image(systemName: showLunar ? "moon.fill" : "moon")
-                                    .font(.system(size: 22))
-                                Text("음력").font(.caption2)
-                            }
-                        }
-
-                        Spacer()
-                        
-                        
-                        
-                        // 일정 목록 버튼
-                        Button {
-                            showScheduleList = true
-                        } label: {
-                            VStack {
-                                Image(systemName: "calendar")
-                                Text("일정").font(.caption2)
-                            }
-                        }
-
-                        Spacer()
-
-                        // 설정/도구 버튼
-                        Button {
-                            showTools = true
-                        } label: {
-                            VStack {
-                                Image(systemName: "wrench.and.screwdriver")
-                                Text("도구").font(.caption2)
-                            }
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 6)
-                    .background(Color.white)
-                    .foregroundColor(.red)
+                    .frame(height: 60)
                 }
 
+                HStack {
+                    Spacer()
+
+                    Button {
+                        showHolidayList = true
+                    } label: {
+                        VStack {
+                            Image(systemName: "party.popper")
+                            Text("공휴일").font(.caption2)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        withAnimation {
+                            showLunar.toggle()
+                        }
+                    } label: {
+                        VStack {
+                            Image(systemName: showLunar ? "moon.fill" : "moon")
+                                .font(.system(size: 22))
+                            Text("음력").font(.caption2)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        showScheduleList = true
+                    } label: {
+                        VStack {
+                            Image(systemName: "calendar")
+                            Text("일정").font(.caption2)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        showTools = true
+                    } label: {
+                        VStack {
+                            Image(systemName: "wrench.and.screwdriver")
+                            Text("도구").font(.caption2)
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding(.vertical, 6)
+                .background(Color.white)
+                .foregroundColor(.red)
             }
-            // 🔽 네비게이션 바 여백 최소화
+            .safeAreaInset(edge: .top, spacing: 0) {
+                calendarHeader
+                    .background(Color(.systemBackground))
+            }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    EmptyView() // 시스템 기본 타이틀/버튼 제거
+                    EmptyView()
                 }
             }
             .fullScreenCover(isPresented: $showingYearMonthPicker) {
-                // ✅ 여기서 "오늘" 기준 연/월 계산
-                let today = Date()
-                let todayYear  = Calendar.current.component(.year, from: today)
-                let todayMonth = Calendar.current.component(.month, from: today)
-
                 YearMonthPickerView(
-                    selectedYear: todayYear,      // 항상 오늘 연도
-                    selectedMonth: todayMonth     // 항상 오늘 월
+                    selectedYear: currentYear,
+                    selectedMonth: currentMonth
                 ) { year, month in
-                    // 1) 사용자가 선택하면 상태 갱신
                     currentYear = year
                     currentMonth = month
 
@@ -176,28 +124,51 @@ struct CalendarContainerView: View {
                     showingYearMonthPicker = false
                 }
             }
-            .sheet(isPresented: $showHolidayList) {
+            .fullScreenCover(isPresented: $showHolidayList) {
                 HolidayListView(holidayManager: holidayManager)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.hidden)
-                    .presentationCornerRadius(20)
             }
             .fullScreenCover(isPresented: $showScheduleList) {
                 ScheduleAllListView()
                     .environment(\.managedObjectContext, viewContext)
             }
-            .sheet(isPresented: $showTools) {
+            .fullScreenCover(isPresented: $showTools) {
                 ToolsView()
                     .environment(\.managedObjectContext, viewContext)
             }
+            .navigationDestination(item: $scheduleNavigationDay) { day in
+                ScheduleListView(selectedDate: day.date)
+                    .environment(\.managedObjectContext, viewContext)
+            }
         }
-        // iOS 17 스타일 onChange: 연도 반영
         .onChange(of: currentDate) {
             let cal = Calendar.current
             let year = cal.component(.year, from: currentDate)
             currentYear = year
             currentMonth = cal.component(.month, from: currentDate)
         }
+    }
+
+    private var calendarHeader: some View {
+        HStack {
+            Button {
+                scheduleNavigationDay = nil
+                showingYearMonthPicker = true
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "chevron.left")
+                    Text(verbatim: "\(currentYear)년")
+                }
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.blue)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
     }
 }
 

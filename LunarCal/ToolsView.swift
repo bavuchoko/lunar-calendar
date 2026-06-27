@@ -1,132 +1,171 @@
 import SwiftUI
 import CoreData
 
+private enum ToolsMenu: String, CaseIterable, Identifiable, Hashable {
+    case ads
+    case backup
+    case tags
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ads: return "광고 제거"
+        case .backup: return "iCloud 백업"
+        case .tags: return "태그 관리"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .ads: return "nosign"
+        case .backup: return "icloud"
+        case .tags: return "tag"
+        }
+    }
+
+    var sectionTitle: String {
+        switch self {
+        case .ads, .backup: return "설정"
+        case .tags: return "일정"
+        }
+    }
+
+    static var settingsItems: [ToolsMenu] { [.ads, .backup] }
+    static var scheduleItems: [ToolsMenu] { [.tags] }
+}
+
 struct ToolsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var viewContext
-    @StateObject private var purchaseManager = PurchaseManager.shared
 
-    @State private var message: String?
-    @State private var showMessage = false
+    @State private var selectedMenu: ToolsMenu? = nil
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 18) {
-                    VStack(spacing: 10) {
-                        Text("도구")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .padding(.top, 10)
-
-                        Text("광고 제거")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 22)
-                            .padding(.top, 10)
+        NavigationSplitView {
+            List(selection: $selectedMenu) {
+                Section("설정") {
+                    ForEach(ToolsMenu.settingsItems) { menu in
+                        Label(menu.title, systemImage: menu.icon)
+                            .tag(menu)
                     }
+                }
 
-                    Button {
-                        Task { await purchaseManager.purchaseRemoveAds() }
-                    } label: {
-                        Text(purchaseManager.isAdsRemoved ? "이미 광고가 제거되어 있어요" : "광고 제거 구매")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 54)
-                            .background(purchaseButtonBackground)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 8)
+                Section("일정") {
+                    ForEach(ToolsMenu.scheduleItems) { menu in
+                        Label(menu.title, systemImage: menu.icon)
+                            .tag(menu)
                     }
-                    .padding(.horizontal, 22)
-                    .disabled(purchaseManager.isAdsRemoved || purchaseManager.isBusy)
-                    .opacity(purchaseManager.isAdsRemoved ? 0.55 : 1.0)
-
-                    Button {
-                        Task { await purchaseManager.restorePurchases() }
-                    } label: {
-                        Text("구매 복원")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                    }
-                    .disabled(purchaseManager.isBusy)
-
-                    Text("“광고 제거 구매”는 스토어 인앱 결제로 진행됩니다.\n“구매 복원”은 재설치/기기 변경 후 구매 내역을 불러옵니다.")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 26)
-                        .padding(.top, 4)
-
-                    Divider()
-                        .padding(.horizontal, 22)
-                        .padding(.top, 10)
-
-                    VStack(spacing: 12) {
-                        Text("iCloud 백업")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Button {
-                            do {
-                                try ICloudBackupManager.shared.backupToICloud(viewContext: viewContext)
-                                show("백업이 완료됐어요.")
-                            } catch {
-                                show(error.localizedDescription)
-                            }
-                        } label: {
-                            Text("iCloud에 백업")
-                                .font(.system(size: 16, weight: .semibold))
-//                                .foregroundColor(.white)
-                                .foregroundColor(.black)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-//                                .background(Color.black.opacity(0.86))
-                                .background(Color(UIColor.systemGray6))
-                                .clipShape(Capsule())
-                        }
-
-                        Button {
-                            do {
-                                try ICloudBackupManager.shared.restoreFromICloud(viewContext: viewContext)
-                                show("복원이 완료됐어요. 앱을 다시 열면 반영이 확실해요.")
-                            } catch {
-                                show(error.localizedDescription)
-                            }
-                        } label: {
-                            Text("iCloud에서 복원")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.black)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(Color(UIColor.systemGray6))
-                                .clipShape(Capsule())
-                        }
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 24)
                 }
             }
-            .background(Color(UIColor.systemGroupedBackground))
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("도구")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("닫기") { dismiss() }
                 }
             }
-            .onReceive(purchaseManager.$lastErrorMessage) { err in
-                guard let err else { return }
-                show(err)
-                purchaseManager.clearError()
+        } detail: {
+            if let selectedMenu {
+                toolsDetail(for: selectedMenu)
+            } else {
+                toolsPlaceholder
             }
-            .alert("안내", isPresented: $showMessage) {
-                Button("확인", role: .cancel) {}
-            } message: {
-                Text(message ?? "")
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onAppear {
+            selectedMenu = nil
+        }
+    }
+
+    @ViewBuilder
+    private func toolsDetail(for menu: ToolsMenu) -> some View {
+        switch menu {
+        case .ads:
+            ToolsAdsDetailView()
+        case .backup:
+            ToolsBackupDetailView()
+                .environment(\.managedObjectContext, viewContext)
+        case .tags:
+            NavigationStack {
+                ScheduleCategoryManageView()
+                    .environment(\.managedObjectContext, viewContext)
             }
+        }
+    }
+
+    private var toolsPlaceholder: some View {
+        ContentUnavailableView(
+            "메뉴 선택",
+            systemImage: "sidebar.left",
+            description: Text("왼쪽에서 항목을 선택하세요.")
+        )
+    }
+}
+
+private struct ToolsAdsDetailView: View {
+    @StateObject private var purchaseManager = PurchaseManager.shared
+    @State private var message: String?
+    @State private var showMessage = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Text("광고 제거")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 16)
+
+                Button {
+                    Task { await purchaseManager.purchaseRemoveAds() }
+                } label: {
+                    Text(purchaseManager.isAdsRemoved ? "이미 광고가 제거되어 있어요" : "광고 제거 구매")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(purchaseButtonBackground)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 8)
+                }
+                .padding(.horizontal, 22)
+                .disabled(purchaseManager.isAdsRemoved || purchaseManager.isBusy)
+                .opacity(purchaseManager.isAdsRemoved ? 0.55 : 1.0)
+
+                Button {
+                    Task { await purchaseManager.restorePurchases() }
+                } label: {
+                    Text("구매 복원")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                }
+                .disabled(purchaseManager.isBusy)
+
+                Text("“광고 제거 구매”는 스토어 인앱 결제로 진행됩니다.\n“구매 복원”은 재설치/기기 변경 후 구매 내역을 불러옵니다.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 26)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
+            }
+        }
+        .background(Color(UIColor.systemGroupedBackground))
+        .navigationTitle("광고 제거")
+        .navigationBarTitleDisplayMode(.inline)
+        .onReceive(purchaseManager.$lastErrorMessage) { err in
+            guard let err else { return }
+            show(err)
+            purchaseManager.clearError()
+        }
+        .alert("안내", isPresented: $showMessage) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(message ?? "")
         }
     }
 
@@ -147,3 +186,73 @@ struct ToolsView: View {
     }
 }
 
+private struct ToolsBackupDetailView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+
+    @State private var message: String?
+    @State private var showMessage = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                Text("일정 데이터를 iCloud Drive에 백업하거나 복원합니다.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 16)
+
+                Button {
+                    do {
+                        try ICloudBackupManager.shared.backupToICloud(viewContext: viewContext)
+                        show("백업이 완료됐어요.")
+                    } catch {
+                        show(error.localizedDescription)
+                    }
+                } label: {
+                    Text("iCloud에 백업")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color(UIColor.systemGray6))
+                        .clipShape(Capsule())
+                }
+                .padding(.horizontal, 22)
+
+                Button {
+                    do {
+                        try ICloudBackupManager.shared.restoreFromICloud(viewContext: viewContext)
+                        show("복원이 완료됐어요. 앱을 다시 열면 반영이 확실해요.")
+                    } catch {
+                        show(error.localizedDescription)
+                    }
+                } label: {
+                    Text("iCloud에서 복원")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color(UIColor.systemGray6))
+                        .clipShape(Capsule())
+                }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(Color(UIColor.systemGroupedBackground))
+        .navigationTitle("iCloud 백업")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("안내", isPresented: $showMessage) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(message ?? "")
+        }
+    }
+
+    private func show(_ text: String) {
+        message = text
+        showMessage = true
+    }
+}

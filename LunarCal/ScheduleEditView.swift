@@ -19,8 +19,27 @@ struct ScheduleEditView: View {
     @State private var alertEnabled: Bool = false
     @State private var alertTime: Date = Date()
     @State private var showDeleteDialog: Bool = false
+    @State private var showSaveDialog: Bool = false
+    @State private var selectedCategoryId: UUID?
+
+    @State private var initialRepeatType: String = "없음"
+    @State private var initialRepeatEndDate: Date = Date()
+
+    private enum SaveScope {
+        case thisOccurrenceOnly
+        case thisAndFuture
+    }
 
     private let repeatOptions = ["없음", "매주", "매월", "매년 (양력)", "매년 (음력)"]
+
+    private var isRepeatSchedule: Bool {
+        schedule.repeatRule != nil || schedule.repeatId != nil
+    }
+
+    private var repeatSettingsChanged: Bool {
+        repeatType != initialRepeatType
+            || !Calendar.current.isDate(repeatEndDate, inSameDayAs: initialRepeatEndDate)
+    }
 
     var body: some View {
         Form {
@@ -44,6 +63,8 @@ struct ScheduleEditView: View {
             Section(header: Text("날짜")) {
                 DatePicker("날짜", selection: $date, displayedComponents: .date)
             }
+
+            ScheduleCategoryPickerSection(selectedCategoryId: $selectedCategoryId)
 
             Section(header: Text("반복")) {
                 Picker("반복 옵션", selection: $repeatType) {
@@ -97,7 +118,7 @@ struct ScheduleEditView: View {
                 let isEnabled = !title.isEmpty
                 Button {
                     guard isEnabled else { return }
-                    saveSchedule()
+                    requestSave()
                 } label: {
                     ZStack {
                         Circle()
@@ -134,6 +155,21 @@ struct ScheduleEditView: View {
         } message: {
             Text("삭제하면 복구할 수 없습니다.")
         }
+        .confirmationDialog(
+            "반복 일정 수정",
+            isPresented: $showSaveDialog,
+            titleVisibility: .visible
+        ) {
+            Button("해당 일자만 수정") {
+                performSave(scope: .thisOccurrenceOnly)
+            }
+            Button("해당 일자 이후 반복일정 모두 수정") {
+                performSave(scope: .thisAndFuture)
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("변경 내용을 어떻게 적용할까요?")
+        }
     }
 
     private func loadData() {
@@ -141,6 +177,7 @@ struct ScheduleEditView: View {
         title = schedule.title ?? ""
         memo = schedule.memo ?? ""
         date = schedule.date ?? Date()
+        selectedCategoryId = schedule.category?.id
 
         // 반복: repeatRule이 있으면 거기서 타입/종료일 가져옴
         if let rule = schedule.repeatRule {
@@ -150,6 +187,9 @@ struct ScheduleEditView: View {
             repeatType = "없음"
             repeatEndDate = date
         }
+
+        initialRepeatType = repeatType
+        initialRepeatEndDate = repeatEndDate
 
         // 알림
         alertEnabled = schedule.alertEnabled
@@ -164,18 +204,49 @@ struct ScheduleEditView: View {
         }
     }
 
-    private func saveSchedule() {
-        // 종료일 방어
-        if repeatType != "없음", repeatEndDate < date {
+    private func requestSave() {
+        if isRepeatSchedule {
+            showSaveDialog = true
+        } else {
+            performSave(scope: .thisOccurrenceOnly)
+        }
+    }
+
+    private func performSave(scope: SaveScope) {
+        if repeatEndDate < date {
             repeatEndDate = date
         }
 
-        // 반복 규칙 변경 적용 (없음이면 해제, 반복이면 이후 삭제 후 재생성)
-        applyRepeatChangeFromThisSchedule()
+        if !isRepeatSchedule && repeatType != "없음" {
+            applyRepeatChangeFromThisSchedule()
+            updateSchedule(for: schedule, date: date)
+            persistChanges(for: schedule)
+            return
+        }
 
-        // 현재 인스턴스 필드 수정
-        updateSchedule(for: schedule, date: date)
+        switch scope {
+        case .thisOccurrenceOnly:
+            if repeatSettingsChanged, repeatType == "없음" {
+                schedule.isFromRepeat = false
+                schedule.repeatId = nil
+                schedule.repeatRule = nil
+            }
+            updateSchedule(for: schedule, date: date)
 
+        case .thisAndFuture:
+            if repeatSettingsChanged {
+                applyRepeatChangeFromThisSchedule()
+                updateSchedule(for: schedule, date: date)
+            } else {
+                updateSchedule(for: schedule, date: date)
+                updateMatchingFutureOccurrences()
+            }
+        }
+
+        persistChanges(for: schedule)
+    }
+
+    private func persistChanges(for schedule: Schedule) {
         do {
             try viewContext.save()
 
@@ -192,15 +263,44 @@ struct ScheduleEditView: View {
     }
 
     private func updateSchedule(for schedule: Schedule, date: Date) {
-        let mergedAlert = merge(date: date, timeOfDay: alertTime)
-
-        schedule.title = title
-        schedule.memo = memo
         schedule.date = date
         schedule.startTime = nil
         schedule.endTime = nil
+        applyEditableFields(to: schedule, occurrenceDate: date)
+    }
+
+    private func applyEditableFields(to schedule: Schedule, occurrenceDate: Date) {
+        schedule.title = title
+        schedule.memo = memo
         schedule.alertEnabled = alertEnabled
-        schedule.alertTime = alertEnabled ? mergedAlert : nil
+        schedule.alertTime = alertEnabled ? merge(date: occurrenceDate, timeOfDay: alertTime) : nil
+        schedule.category = Schedule.category(with: selectedCategoryId, in: viewContext)
+    }
+
+    private func updateMatchingFutureOccurrences() {
+        guard let repeatId = schedule.repeatId else { return }
+
+        let calendar = Calendar.current
+        let baseStart = calendar.startOfDay(for: schedule.date ?? date)
+
+        let fetch: NSFetchRequest<Schedule> = Schedule.fetchRequest()
+        fetch.predicate = NSPredicate(
+            format: "repeatId == %@ AND date > %@",
+            repeatId as CVarArg, baseStart as NSDate
+        )
+
+        guard let targets = try? viewContext.fetch(fetch) else { return }
+
+        for occurrence in targets {
+            guard let occurrenceDate = occurrence.date else { continue }
+            applyEditableFields(to: occurrence, occurrenceDate: occurrenceDate)
+
+            if alertEnabled {
+                NotificationManager.shared.scheduleNotification(for: occurrence)
+            } else {
+                NotificationManager.shared.removeNotification(for: occurrence)
+            }
+        }
     }
 
     private func deleteOnlyThisSchedule() {
@@ -348,16 +448,13 @@ struct ScheduleEditView: View {
         while current <= endDate {
             let s = Schedule(context: viewContext)
             s.id = UUID()
-            s.title = title
-            s.memo = memo
             s.date = current
             s.startTime = nil
             s.endTime = nil
-            s.alertEnabled = alertEnabled
-            s.alertTime = alertEnabled ? merge(date: current, timeOfDay: alertTime) : nil
             s.isFromRepeat = true
             s.repeatId = rule.id
             s.repeatRule = rule
+            applyEditableFields(to: s, occurrenceDate: current)
             rule.addToOccurrences(s)
 
             if alertEnabled {
@@ -388,16 +485,13 @@ struct ScheduleEditView: View {
 
             let s = Schedule(context: viewContext)
             s.id = UUID()
-            s.title = title
-            s.memo = memo
             s.date = solarDate
             s.startTime = nil
             s.endTime = nil
-            s.alertEnabled = alertEnabled
-            s.alertTime = alertEnabled ? merge(date: solarDate, timeOfDay: alertTime) : nil
             s.isFromRepeat = true
             s.repeatId = rule.id
             s.repeatRule = rule
+            applyEditableFields(to: s, occurrenceDate: solarDate)
             rule.addToOccurrences(s)
 
             if alertEnabled {

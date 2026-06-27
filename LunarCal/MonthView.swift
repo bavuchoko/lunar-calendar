@@ -1,13 +1,18 @@
 import SwiftUI
 import CoreData
 
+struct ScheduleDayNavigation: Identifiable, Hashable {
+    let date: Date
+    var id: TimeInterval { date.timeIntervalSince1970 }
+}
+
 struct MonthView: View {
     @Binding var currentDate: Date
+    @Binding var scheduleNavigationDay: ScheduleDayNavigation?
     var schedules: FetchedResults<Schedule>
     var showLunar: Bool
     @ObservedObject var holidayManager: HolidayManager
 
-    @Environment(\.managedObjectContext) private var viewContext
     @State private var selectedDate: Date? = nil
 
     private let calendar = Calendar.current
@@ -30,11 +35,10 @@ struct MonthView: View {
             let cellHeight: CGFloat = 80
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 0) {
-                ForEach(Array(dates.enumerated()), id: \.offset) { index, date in
-                    NavigationLink(
-                        destination: ScheduleListView(selectedDate: date)
-                            .environment(\.managedObjectContext, viewContext)
-                    ) {
+                ForEach(dates, id: \.timeIntervalSince1970) { date in
+                    Button {
+                        scheduleNavigationDay = ScheduleDayNavigation(date: date)
+                    } label: {
                         CalendarCellView(
                             date: date,
                             month: currentDate,
@@ -50,6 +54,7 @@ struct MonthView: View {
                 }
             }
             .frame(height: CGFloat(rowCount) * cellHeight)
+            .clipped()
             .padding(.horizontal)
         }
     }
@@ -104,6 +109,7 @@ struct MonthView: View {
             NavigationStack {
                 MonthView(
                     currentDate: $currentDate,
+                    scheduleNavigationDay: .constant(nil),
                     schedules: schedules,
                     showLunar: false,
                     holidayManager: holidayManager
