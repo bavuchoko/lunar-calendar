@@ -1,95 +1,135 @@
 import SwiftUI
+import CoreData
 
 struct YearMonthPickerView: View {
     let selectedYear: Int
     let selectedMonth: Int
-    let onSelect: (Int, Int) -> Void   // (year, month)
+    let onSelect: (Int, Int) -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    @FetchRequest(
+        sortDescriptors: [
+            NSSortDescriptor(keyPath: \Schedule.date, ascending: true),
+            NSSortDescriptor(keyPath: \Schedule.createdAt, ascending: true)
+        ],
+        animation: .default
+    )
+    private var schedules: FetchedResults<Schedule>
 
-    // 시작 기준 연도 (현재 선택 연도 중심)
-    @State private var baseYear: Int
+    @State private var isReady = false
 
-    init(
-        selectedYear: Int,
-        selectedMonth: Int,
-        onSelect: @escaping (Int, Int) -> Void
-    ) {
-        self.selectedYear = selectedYear
-        self.selectedMonth = selectedMonth
-        self.onSelect = onSelect
-        _baseYear = State(initialValue: selectedYear)
+    private let yearsRange: Int = 10
+
+    private var yearRange: ClosedRange<Int> {
+        (selectedYear - yearsRange)...(selectedYear + yearsRange)
     }
 
-    private let yearsRange: Int = 10   // 위아래 몇 년까지 보여줄지
+    /// 날짜(yyyy-MM-dd) → 표시 색 (태그 색, 없으면 기본 파랑)
+    private var tagColorByDay: [String: Color] {
+        let calendar = Calendar.current
+        var buckets: [String: [Schedule]] = [:]
+
+        for schedule in schedules {
+            guard let date = schedule.date else { continue }
+            let key = dayKey(date, calendar: calendar)
+            buckets[key, default: []].append(schedule)
+        }
+
+        var result: [String: Color] = [:]
+        for (key, list) in buckets {
+            let ordered = list.sorted { lhs, rhs in
+                let l = lhs.date ?? .distantFuture
+                let r = rhs.date ?? .distantFuture
+                if l != r { return l < r }
+                let lc = lhs.createdAt ?? .distantPast
+                let rc = rhs.createdAt ?? .distantPast
+                return lc < rc
+            }
+            guard !ordered.isEmpty else { continue }
+
+            if let hex = ordered.first(where: {
+                let value = $0.category?.colorHex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return !value.isEmpty
+            })?.category?.colorHex {
+                result[key] = ScheduleCategoryColor.color(from: hex)
+            } else {
+                result[key] = Color.blue
+            }
+        }
+        return result
+    }
 
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 32) {
-                        ForEach((baseYear - yearsRange)...(baseYear + yearsRange), id: \.self) { year in
+                    // LazyVStack은 높이 추정 오차로 현재 연도 스크롤이 어긋남 → VStack 사용
+                    VStack(spacing: 32) {
+                        ForEach(Array(yearRange), id: \.self) { year in
                             YearSectionView(
                                 year: year,
                                 selectedYear: selectedYear,
                                 selectedMonth: selectedMonth,
+                                tagColorByDay: tagColorByDay,
                                 onSelect: onSelect
                             )
-                            .id(year)   // 🔴 이 id를 기준으로 스크롤
+                            .id(year)
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, 32)
                 }
-                .onAppear {
-                    // 🔴 피커가 뜰 때 선택 연도로 스크롤 위치 맞추기
-                    DispatchQueue.main.async {
-                        withAnimation {
-                            proxy.scrollTo(selectedYear, anchor: .center)
-                        }
-                    }
+                .opacity(isReady ? 1 : 0)
+                .task(id: selectedYear) {
+                    await scrollToSelectedYear(proxy: proxy)
                 }
             }
-            .navigationTitle("\(String(baseYear))년")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    @MainActor
+    private func scrollToSelectedYear(proxy: ScrollViewProxy) async {
+        isReady = false
+        // 레이아웃이 잡힌 뒤 현재 연도 상단에 맞춤 (한 번으로는 어긋날 수 있어 재시도)
+        for _ in 0..<3 {
+            await Task.yield()
+            proxy.scrollTo(selectedYear, anchor: .top)
+            try? await Task.sleep(nanoseconds: 16_000_000)
+        }
+        proxy.scrollTo(selectedYear, anchor: .top)
+        isReady = true
+    }
+
+    private func dayKey(_ date: Date, calendar: Calendar) -> String {
+        let y = calendar.component(.year, from: date)
+        let m = calendar.component(.month, from: date)
+        let d = calendar.component(.day, from: date)
+        return String(format: "%04d-%02d-%02d", y, m, d)
     }
 }
 
-/// 한 해(12개월) 블록
 private struct YearSectionView: View {
     let year: Int
     let selectedYear: Int
     let selectedMonth: Int
+    let tagColorByDay: [String: Color]
     let onSelect: (Int, Int) -> Void
 
-    private let calendar = Calendar.current
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // 연도 타이틀
+        VStack(alignment: .leading, spacing: 18) {
             Text("\(String(year))년")
-                .font(.largeTitle.bold())
+                .font(.system(size: 34, weight: .bold))
                 .foregroundColor(year == selectedYear ? .red : .primary)
-                .padding(.leading, 8)
+                .padding(.leading, 4)
 
-            // 3 x 4 월 그리드
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 24) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 28) {
                 ForEach(1...12, id: \.self) { month in
                     MonthMiniView(
                         year: year,
                         month: month,
-                        isSelected: year == selectedYear && month == selectedMonth
+                        isSelected: year == selectedYear && month == selectedMonth,
+                        tagColorByDay: tagColorByDay
                     )
                     .onTapGesture {
                         onSelect(year, month)
@@ -100,47 +140,80 @@ private struct YearSectionView: View {
     }
 }
 
-/// 작은 월 달력 (숫자만 나열)
 private struct MonthMiniView: View {
     let year: Int
     let month: Int
     let isSelected: Bool
+    let tagColorByDay: [String: Color]
 
     private let calendar = Calendar(identifier: .gregorian)
 
+    private var todayDay: Int? {
+        let today = Date()
+        guard calendar.component(.year, from: today) == year,
+              calendar.component(.month, from: today) == month else {
+            return nil
+        }
+        return calendar.component(.day, from: today)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             Text("\(month)월")
-                .font(.headline)
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(isSelected ? .red : .primary)
 
-            // 요일 헤더는 생략하고 숫자만 간단히
             let days = makeDays()
+            let today = todayDay
             LazyVGrid(
                 columns: Array(
-                    repeating: GridItem(.flexible(minimum: 14), spacing: 1),
+                    repeating: GridItem(.flexible(minimum: 16), spacing: 1),
                     count: 7
                 ),
-                spacing: 1
+                spacing: 2
             ) {
                 ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                    Text(day == 0 ? "" : String(day))
-                        .font(.system(size: 9))
-                        .frame(maxWidth: .infinity)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .foregroundColor(isSelected ? .red : .primary)
+                    dayCell(day: day, isToday: day != 0 && day == today)
                 }
             }
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isSelected ? Color.red.opacity(0.12) : Color.clear)
-        )
+        .padding(6)
     }
 
-    /// 해당 월의 달력 숫자 배열 (앞의 빈칸은 0)
+    @ViewBuilder
+    private func dayCell(day: Int, isToday: Bool) -> some View {
+        if day == 0 {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 18)
+        } else {
+            let tagColor = tagColorByDay[String(format: "%04d-%02d-%02d", year, month, day)]
+            let hasHighlight = isToday || tagColor != nil
+            let fillColor: Color = isToday ? .red : (tagColor ?? .clear)
+            let textColor: Color = {
+                if isToday { return .white }
+                if let tagColor {
+                    return ScheduleCategoryColor.contrastingTextColor(for: tagColor)
+                }
+                return .primary
+            }()
+
+            Text(String(day))
+                .font(.system(size: 11, weight: hasHighlight ? .semibold : .regular))
+                .foregroundColor(textColor)
+                .frame(width: 18, height: 18)
+                .background {
+                    if hasHighlight {
+                        Circle().fill(fillColor)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 18)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+    }
+
     private func makeDays() -> [Int] {
         var components = DateComponents()
         components.year = year
@@ -150,10 +223,8 @@ private struct MonthMiniView: View {
               let range = calendar.range(of: .day, in: .month, for: firstDay)
         else { return [] }
 
-        let weekday = calendar.component(.weekday, from: firstDay) // 1=일
+        let weekday = calendar.component(.weekday, from: firstDay)
         let leadingEmpty = weekday - 1
-
-        let days = Array(range)
-        return Array(repeating: 0, count: leadingEmpty) + days
+        return Array(repeating: 0, count: leadingEmpty) + Array(range)
     }
 }

@@ -1,6 +1,5 @@
 import SwiftUI
 import CoreData
-import UserNotifications
 
 struct ScheduleEditView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -20,6 +19,7 @@ struct ScheduleEditView: View {
     @State private var alertTime: Date = Date()
     @State private var showDeleteDialog: Bool = false
     @State private var showSaveDialog: Bool = false
+    @State private var showNotificationPermissionAlert = false
     @State private var selectedCategoryId: UUID?
 
     @State private var initialRepeatType: String = "없음"
@@ -170,6 +170,14 @@ struct ScheduleEditView: View {
         } message: {
             Text("변경 내용을 어떻게 적용할까요?")
         }
+        .alert("알림 권한이 필요해요", isPresented: $showNotificationPermissionAlert) {
+            Button("설정 열기") {
+                NotificationManager.openSystemSettings()
+            }
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("일정 알림을 받으려면 설정에서 알림을 허용해 주세요.")
+        }
     }
 
     private func loadData() {
@@ -248,15 +256,19 @@ struct ScheduleEditView: View {
 
     private func persistChanges(for schedule: Schedule) {
         do {
+            viewContext.processPendingChanges()
             try viewContext.save()
-
-            if alertEnabled {
-                NotificationManager.shared.scheduleNotification(for: schedule)
-            } else {
-                NotificationManager.shared.removeNotification(for: schedule)
+            viewContext.refresh(schedule, mergeChanges: true)
+            if let category = schedule.category {
+                viewContext.refresh(category, mergeChanges: true)
             }
-
-            dismiss()
+            LunarCalScheduleChange.post()
+            NotificationManager.shared.rescheduleAll(in: viewContext) { result in
+                if result == .permissionDenied {
+                    showNotificationPermissionAlert = true
+                }
+                dismiss()
+            }
         } catch {
             print("❌ 저장 실패:", error)
         }
@@ -274,6 +286,8 @@ struct ScheduleEditView: View {
         schedule.memo = memo
         schedule.alertEnabled = alertEnabled
         schedule.alertTime = alertEnabled ? merge(date: occurrenceDate, timeOfDay: alertTime) : nil
+        // 관계 변경이 확실히 반영되도록 한 번 비운 뒤 다시 설정
+        schedule.category = nil
         schedule.category = Schedule.category(with: selectedCategoryId, in: viewContext)
     }
 
@@ -294,20 +308,15 @@ struct ScheduleEditView: View {
         for occurrence in targets {
             guard let occurrenceDate = occurrence.date else { continue }
             applyEditableFields(to: occurrence, occurrenceDate: occurrenceDate)
-
-            if alertEnabled {
-                NotificationManager.shared.scheduleNotification(for: occurrence)
-            } else {
-                NotificationManager.shared.removeNotification(for: occurrence)
-            }
         }
     }
 
     private func deleteOnlyThisSchedule() {
-        NotificationManager.shared.removeNotification(for: schedule)
         viewContext.delete(schedule)
         do {
             try viewContext.save()
+            LunarCalScheduleChange.post()
+            NotificationManager.shared.rescheduleAll(in: viewContext)
             dismiss()
         } catch {
             print("❌ 삭제 실패:", error)
@@ -330,7 +339,6 @@ struct ScheduleEditView: View {
             do {
                 let targets = try viewContext.fetch(fetch)
                 for s in targets {
-                    NotificationManager.shared.removeNotification(for: s)
                     viewContext.delete(s)
                 }
             } catch {
@@ -344,12 +352,13 @@ struct ScheduleEditView: View {
             }
         } else {
             // repeatId가 없으면 그냥 현재 일정만 삭제
-            NotificationManager.shared.removeNotification(for: schedule)
             viewContext.delete(schedule)
         }
 
         do {
             try viewContext.save()
+            LunarCalScheduleChange.post()
+            NotificationManager.shared.rescheduleAll(in: viewContext)
             dismiss()
         } catch {
             print("❌ 삭제 실패:", error)
@@ -377,7 +386,6 @@ struct ScheduleEditView: View {
             do {
                 let future = try viewContext.fetch(fetch)
                 for s in future {
-                    NotificationManager.shared.removeNotification(for: s)
                     viewContext.delete(s)
                 }
             } catch {
@@ -449,6 +457,7 @@ struct ScheduleEditView: View {
             let s = Schedule(context: viewContext)
             s.id = UUID()
             s.date = current
+            s.createdAt = Date()
             s.startTime = nil
             s.endTime = nil
             s.isFromRepeat = true
@@ -456,10 +465,6 @@ struct ScheduleEditView: View {
             s.repeatRule = rule
             applyEditableFields(to: s, occurrenceDate: current)
             rule.addToOccurrences(s)
-
-            if alertEnabled {
-                NotificationManager.shared.scheduleNotification(for: s)
-            }
 
             current = nextOccurrenceDate(after: current, rule: rule, calendar: calendar)
         }
@@ -486,6 +491,7 @@ struct ScheduleEditView: View {
             let s = Schedule(context: viewContext)
             s.id = UUID()
             s.date = solarDate
+            s.createdAt = Date()
             s.startTime = nil
             s.endTime = nil
             s.isFromRepeat = true
@@ -493,10 +499,6 @@ struct ScheduleEditView: View {
             s.repeatRule = rule
             applyEditableFields(to: s, occurrenceDate: solarDate)
             rule.addToOccurrences(s)
-
-            if alertEnabled {
-                NotificationManager.shared.scheduleNotification(for: s)
-            }
         }
     }
 

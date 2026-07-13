@@ -14,6 +14,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         bindNotificationDelegate()
         DispatchQueue.main.async { [weak self] in
             self?.bindNotificationDelegate()
+            NotificationManager.shared.rescheduleAll(
+                in: PersistenceController.shared.container.viewContext
+            )
         }
         return true
     }

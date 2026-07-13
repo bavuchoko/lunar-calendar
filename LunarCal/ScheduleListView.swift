@@ -17,7 +17,7 @@ struct ScheduleListView: View {
         let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay)!
 
         let request: NSFetchRequest<Schedule> = Schedule.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Schedule.date, ascending: true)]
+        request.sortDescriptors = Schedule.defaultSortDescriptors
         request.predicate = NSPredicate(format: "date >= %@ AND date < %@", startOfDay as NSDate, endOfDay as NSDate)
 
         _schedules = FetchRequest(fetchRequest: request)
@@ -127,6 +127,7 @@ struct ScheduleListView: View {
             viewContext.delete(schedule)
             do {
                 try viewContext.save()
+                LunarCalScheduleChange.post()
             } catch {
                 print("삭제 실패: \(error.localizedDescription)")
             }
@@ -144,7 +145,7 @@ struct ScheduleListView: View {
 // MARK: - 스와이프 + 칸반 카드
 
 struct SwipeableScheduleRow: View {
-    let schedule: Schedule
+    @ObservedObject var schedule: Schedule
     let paletteIndex: Int
     let onDelete: () -> Void
 
@@ -155,7 +156,6 @@ struct SwipeableScheduleRow: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            // 스와이프하지 않을 때는 빨간 삭제 영역을 그리지 않음 — 카드 모서리 안티앨리어싱 뒤로 빨강이 비치는 현상 방지
             KanbanTheme.background
                 .allowsHitTesting(false)
 
@@ -186,6 +186,7 @@ struct SwipeableScheduleRow: View {
                     secondaryTag: schedule.cardSecondaryTag,
                     tagHex: schedule.cardTagHex
                 )
+                .id("\(schedule.objectID.uriRepresentation().absoluteString)-\(schedule.cardTagHex ?? "none")-\(schedule.cardPrimaryTag)")
             }
             .buttonStyle(.plain)
             .offset(x: offset)

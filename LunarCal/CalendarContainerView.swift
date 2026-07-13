@@ -31,12 +31,11 @@ struct CalendarContainerView: View {
                     selectedDate: $selectedDate,
                     scheduleNavigationDay: $scheduleNavigationDay
                 )
-
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if !purchaseManager.isAdsRemoved {
                     BannerAdView(
-                        adUnitID: "ca-app-pub-8998366944335616/8089042227"
+                        adUnitID: "ca-app-pub-8998366944335616/8845674056"
                     )
                     .frame(height: 60)
                 }
@@ -108,21 +107,21 @@ struct CalendarContainerView: View {
             }
             .fullScreenCover(isPresented: $showingYearMonthPicker) {
                 YearMonthPickerView(
-                    selectedYear: currentYear,
-                    selectedMonth: currentMonth
+                    selectedYear: Calendar.current.component(.year, from: currentDate),
+                    selectedMonth: Calendar.current.component(.month, from: currentDate)
                 ) { year, month in
-                    currentYear = year
-                    currentMonth = month
-
                     if let newDate = Calendar.current.date(
                         from: DateComponents(year: year, month: month, day: 1)
                     ) {
                         selectedDate = newDate
-                        currentDate  = newDate
+                        currentDate = newDate
+                        currentYear = year
+                        currentMonth = month
                     }
 
                     showingYearMonthPicker = false
                 }
+                .environment(\.managedObjectContext, viewContext)
             }
             .fullScreenCover(isPresented: $showHolidayList) {
                 HolidayListView(holidayManager: holidayManager)
@@ -152,11 +151,14 @@ struct CalendarContainerView: View {
         HStack {
             Button {
                 scheduleNavigationDay = nil
+                // 헤더 연도는 항상 currentDate 기준으로 맞춤
+                currentYear = Calendar.current.component(.year, from: currentDate)
+                currentMonth = Calendar.current.component(.month, from: currentDate)
                 showingYearMonthPicker = true
             } label: {
                 HStack(spacing: 2) {
                     Image(systemName: "chevron.left")
-                    Text(verbatim: "\(currentYear)년")
+                    Text(verbatim: "\(Calendar.current.component(.year, from: currentDate))년")
                 }
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.blue)

@@ -16,6 +16,7 @@ struct ScheduleAddView: View {
     @State private var alertEnabled: Bool = false
     @State private var alertTime: Date = Date()
     @State private var selectedCategoryId: UUID?
+    @State private var showNotificationPermissionAlert = false
 
     private let repeatOptions = ["없음", "매주", "매월", "매년 (양력)", "매년 (음력)"]
 
@@ -101,14 +102,26 @@ struct ScheduleAddView: View {
                 alertTime = nine
             }
         }
+        .alert("알림 권한이 필요해요", isPresented: $showNotificationPermissionAlert) {
+            Button("설정 열기") {
+                NotificationManager.openSystemSettings()
+            }
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("일정 알림을 받으려면 설정에서 알림을 허용해 주세요.")
+        }
     }
 
     private var scheduleSaveToolbarButton: some View {
         let isEnabled = !title.isEmpty
         return Button {
             guard isEnabled else { return }
-            saveSchedule()
-            dismiss()
+            saveSchedule { result in
+                if result == .permissionDenied {
+                    showNotificationPermissionAlert = true
+                }
+                dismiss()
+            }
         } label: {
             ZStack {
                 Circle()
@@ -133,7 +146,7 @@ struct ScheduleAddView: View {
 
     // MARK: - 저장 로직
 
-    private func saveSchedule() {
+    private func saveSchedule(completion: @escaping (NotificationScheduleResult?) -> Void) {
         // 반복이면 종료일은 반드시 anchor(선택 날짜) 이상이어야 함
         if repeatType != "없음", repeatEndDate < selectedDate {
             repeatEndDate = selectedDate
@@ -146,6 +159,7 @@ struct ScheduleAddView: View {
             s.title = title
             s.memo = memo
             s.date = selectedDate
+            s.createdAt = Date()
             s.startTime = nil
             s.endTime = nil
             s.alertEnabled = alertEnabled
@@ -154,10 +168,6 @@ struct ScheduleAddView: View {
             s.repeatId = nil
             s.repeatRule = nil
             s.category = Schedule.category(with: selectedCategoryId, in: viewContext)
-
-            if alertEnabled {
-                NotificationManager.shared.scheduleNotification(for: s)
-            }
 
         } else if repeatType == "매년 (음력)" {
             // 2-A) 음력 반복: 음력 정보 저장 + 올해/내년 생성
@@ -202,6 +212,7 @@ struct ScheduleAddView: View {
             s.title = title
             s.memo = memo
             s.date = selectedDate
+            s.createdAt = Date()
             s.startTime = nil
             s.endTime = nil
             s.alertEnabled = alertEnabled
@@ -210,17 +221,18 @@ struct ScheduleAddView: View {
             s.repeatId = nil
             s.repeatRule = nil
             s.category = Schedule.category(with: selectedCategoryId, in: viewContext)
-
-            if alertEnabled {
-                NotificationManager.shared.scheduleNotification(for: s)
-            }
         }
 
         do {
             try viewContext.save()
             print("일정 저장 완료")
+            LunarCalScheduleChange.post()
+            NotificationManager.shared.rescheduleAll(in: viewContext) { result in
+                completion(result == .permissionDenied ? .permissionDenied : nil)
+            }
         } catch {
             print("Core Data 저장 실패:", error.localizedDescription)
+            completion(nil)
         }
     }
 
@@ -228,11 +240,13 @@ struct ScheduleAddView: View {
 
     /// 단일 occurrence 하나 생성 (Schedule + 관계 설정)
     private func createOccurrence(on date: Date, rule: RepeatSchedule) {
+        let order = (rule.occurrences as? Set<Schedule>)?.count ?? 0
         let s = Schedule(context: viewContext)
         s.id = UUID()
         s.title = title
         s.memo = memo
         s.date = date
+        s.createdAt = Date().addingTimeInterval(TimeInterval(order) * 0.001)
         s.startTime = nil
         s.endTime = nil
         s.alertEnabled = alertEnabled
@@ -243,10 +257,6 @@ struct ScheduleAddView: View {
         s.category = Schedule.category(with: selectedCategoryId, in: viewContext)
 
         rule.addToOccurrences(s)
-
-        if alertEnabled {
-            NotificationManager.shared.scheduleNotification(for: s)
-        }
     }
 
     private func merge(date: Date, timeOfDay: Date) -> Date {

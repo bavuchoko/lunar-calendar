@@ -46,22 +46,17 @@ struct TagChipView: View {
     var compact: Bool = false
 
     var body: some View {
-        if let style = ScheduleCategoryColor.tagStyle(hex: hex) {
-            Text(text)
-                .font(.system(size: fontSize, weight: .semibold))
-                .foregroundStyle(style.foreground)
-                .padding(.horizontal, compact ? 4 : 8)
-                .padding(.vertical, compact ? 2 : 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(style.background)
-                .clipShape(RoundedRectangle(cornerRadius: compact ? 3 : 6, style: .continuous))
-                .lineLimit(1)
-        } else {
-            Text(text)
-                .font(.system(size: fontSize, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-        }
+        let style = ScheduleCategoryColor.tagStyle(hex: hex)
+
+        Text(text)
+            .font(.system(size: fontSize, weight: style == nil ? .medium : .semibold))
+            .foregroundStyle(style?.foreground ?? Color.primary)
+            .padding(.horizontal, compact ? 4 : 8)
+            .padding(.vertical, compact ? 2 : 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(style?.background ?? Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: compact ? 3 : 6, style: .continuous))
+            .lineLimit(1)
     }
 }
 

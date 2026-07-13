@@ -191,6 +191,8 @@ private struct ToolsBackupDetailView: View {
 
     @State private var message: String?
     @State private var showMessage = false
+    @State private var showRestoreConfirmation = false
+    @State private var lastBackupDate = ICloudBackupManager.shared.lastBackupDate()
 
     var body: some View {
         ScrollView {
@@ -203,9 +205,18 @@ private struct ToolsBackupDetailView: View {
                     .padding(.horizontal, 22)
                     .padding(.top, 16)
 
+                if let lastBackupDate {
+                    Text("마지막 백업: \(formattedBackupDate(lastBackupDate))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 22)
+                }
+
                 Button {
                     do {
                         try ICloudBackupManager.shared.backupToICloud(viewContext: viewContext)
+                        lastBackupDate = ICloudBackupManager.shared.lastBackupDate()
                         show("백업이 완료됐어요.")
                     } catch {
                         show(error.localizedDescription)
@@ -222,12 +233,7 @@ private struct ToolsBackupDetailView: View {
                 .padding(.horizontal, 22)
 
                 Button {
-                    do {
-                        try ICloudBackupManager.shared.restoreFromICloud(viewContext: viewContext)
-                        show("복원이 완료됐어요. 앱을 다시 열면 반영이 확실해요.")
-                    } catch {
-                        show(error.localizedDescription)
-                    }
+                    showRestoreConfirmation = true
                 } label: {
                     Text("iCloud에서 복원")
                         .font(.system(size: 16, weight: .semibold))
@@ -244,11 +250,44 @@ private struct ToolsBackupDetailView: View {
         .background(Color(UIColor.systemGroupedBackground))
         .navigationTitle("iCloud 백업")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            lastBackupDate = ICloudBackupManager.shared.lastBackupDate()
+        }
         .alert("안내", isPresented: $showMessage) {
             Button("확인", role: .cancel) {}
         } message: {
             Text(message ?? "")
         }
+        .confirmationDialog(
+            "iCloud에서 복원할까요?",
+            isPresented: $showRestoreConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("복원", role: .destructive) {
+                performRestore()
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("현재 기기의 일정 데이터가 iCloud 백업으로 덮어씌워집니다. 이 작업은 되돌릴 수 없어요.")
+        }
+    }
+
+    private func performRestore() {
+        do {
+            try ICloudBackupManager.shared.restoreFromICloud(viewContext: viewContext)
+            lastBackupDate = ICloudBackupManager.shared.lastBackupDate()
+            show("복원이 완료됐어요.")
+        } catch {
+            show(error.localizedDescription)
+        }
+    }
+
+    private func formattedBackupDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
     private func show(_ text: String) {

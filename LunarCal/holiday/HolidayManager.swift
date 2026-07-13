@@ -469,14 +469,14 @@ class HolidayManager: ObservableObject {
     // MARK: - Helpers
 
     func isHoliday(_ date: Date) -> Bool {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let dateString = formatter.string(from: date)
-        return holidays.keys.contains(dateString)
+        holidayName(for: date) != nil
     }
 
     func holidayName(for date: Date) -> String? {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.calendar = Calendar.current
         formatter.dateFormat = "yyyy-MM-dd"
         let dateString = formatter.string(from: date)
         return holidays[dateString]

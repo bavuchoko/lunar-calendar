@@ -7,7 +7,8 @@ struct ScheduleAllListView: View {
 
     @FetchRequest(
         sortDescriptors: [
-            NSSortDescriptor(keyPath: \Schedule.date, ascending: true)
+            NSSortDescriptor(keyPath: \Schedule.date, ascending: true),
+            NSSortDescriptor(keyPath: \Schedule.createdAt, ascending: true)
         ],
         animation: .default
     )
@@ -350,6 +351,7 @@ struct ScheduleAllListView: View {
                         secondaryTag: schedule.cardSecondaryTag,
                         tagHex: schedule.cardTagHex
                     )
+                    .id("\(schedule.objectID.uriRepresentation().absoluteString)-\(schedule.cardTagHex ?? "none")-\(schedule.cardPrimaryTag)")
                 }
                 .buttonStyle(.plain)
             }

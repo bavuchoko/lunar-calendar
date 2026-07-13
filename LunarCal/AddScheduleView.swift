@@ -41,7 +41,8 @@ struct AddScheduleView: View {
         newSchedule.title = title
         newSchedule.memo = memo
         newSchedule.date = selectedDate
-        
+        newSchedule.createdAt = Date()
+
         do {
             try viewContext.save()
             dismiss()
