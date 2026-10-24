@@ -6,5 +6,12 @@
 	<string>ca-app-pub-8998366944335616~3558899801</string>
 	<key>HolidayPublicDataServiceKey</key>
 	<string></string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -121,7 +121,7 @@ private struct ToolsAdsDetailView: View {
                 Button {
                     Task { await purchaseManager.purchaseRemoveAds() }
                 } label: {
-                    Text(purchaseManager.isAdsRemoved ? "이미 광고가 제거되어 있어요" : "광고 제거 구매")
+                    Text(purchaseButtonTitle)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -145,7 +145,7 @@ private struct ToolsAdsDetailView: View {
                 }
                 .disabled(purchaseManager.isBusy)
 
-                Text("“광고 제거 구매”는 스토어 인앱 결제로 진행됩니다.\n“구매 복원”은 재설치/기기 변경 후 구매 내역을 불러옵니다.")
+                Text("한 번 구매하면 앱의 모든 광고가 영구적으로 제거됩니다.\n“광고 제거 구매”는 스토어 인앱 결제로 진행됩니다.\n“구매 복원”은 재설치/기기 변경 후 구매 내역을 불러옵니다.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -167,6 +167,12 @@ private struct ToolsAdsDetailView: View {
         } message: {
             Text(message ?? "")
         }
+    }
+
+    private var purchaseButtonTitle: String {
+        if purchaseManager.isAdsRemoved { return "이미 광고가 제거되어 있어요" }
+        if let price = purchaseManager.removeAdsDisplayPrice { return "광고 제거 구매 · \(price)" }
+        return "광고 제거 구매"
     }
 
     private var purchaseButtonBackground: some ShapeStyle {

@@ -1,0 +1,48 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "6C1F2A7E",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "1100",
+      "familyShareable" : false,
+      "internalID" : "6740000001",
+      "localizations" : [
+        {
+          "description" : "앱의 모든 광고를 제거합니다.",
+          "displayName" : "광고 제거",
+          "locale" : "ko"
+        }
+      ],
+      "productID" : "lunarcal.remove_ads",
+      "referenceName" : "Remove Ads",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "ko",
+    "_storefront" : "KOR",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

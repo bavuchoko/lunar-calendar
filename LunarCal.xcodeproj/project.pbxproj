@@ -30,6 +30,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		211C9FBD308CA5A400C24B3F /* LunarCal.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = LunarCal.storekit; sourceTree = "<group>"; };
 		213FBBF92EBA551C001FED86 /* LunarCal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LunarCal.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		213FBC092EBA551D001FED86 /* LunarCalTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LunarCalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		213FBC132EBA551D001FED86 /* LunarCalUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LunarCalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -106,6 +107,7 @@
 		213FBBF02EBA551C001FED86 = {
 			isa = PBXGroup;
 			children = (
+				211C9FBD308CA5A400C24B3F /* LunarCal.storekit */,
 				213FBBFB2EBA551C001FED86 /* LunarCal */,
 				213FBC0C2EBA551D001FED86 /* LunarCalTests */,
 				213FBC162EBA551D001FED86 /* LunarCalUITests */,
@@ -433,12 +435,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LunarCal/LunarCal.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "\"LunarCal/Preview Content\"";
 				DEVELOPMENT_TEAM = 323XYLKT86;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LunarCal/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -464,12 +467,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LunarCal/LunarCal.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "\"LunarCal/Preview Content\"";
 				DEVELOPMENT_TEAM = 323XYLKT86;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LunarCal/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
