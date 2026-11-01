@@ -1,4 +1,5 @@
 import AppTrackingTransparency
+import UIKit
 import GoogleMobileAds
 
 /// 광고 추적 허용(ATT) 응답을 받은 뒤에 Google Mobile Ads를 시작합니다.
@@ -25,6 +26,9 @@ final class AdsManager: ObservableObject {
         guard !PurchaseManager.shared.isAdsRemoved else { return }
 
         if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
+            // 실행 직후 화면 전환이 끝나기 전에 요청하면 팝업 없이 거부로 처리될 수 있어 잠시 기다립니다.
+            try? await Task.sleep(for: .milliseconds(500))
+            guard UIApplication.shared.applicationState == .active else { return }
             _ = await ATTrackingManager.requestTrackingAuthorization()
             // 다른 시스템 팝업이 떠 있으면 응답 없이 끝날 수 있어, 다음 활성화 때 다시 묻습니다.
             guard ATTrackingManager.trackingAuthorizationStatus != .notDetermined else { return }

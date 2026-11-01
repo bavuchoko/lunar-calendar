@@ -9,12 +9,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         bindNotificationDelegate()
-        DispatchQueue.main.async { [weak self] in
-            self?.bindNotificationDelegate()
-            NotificationManager.shared.rescheduleAll(
-                in: PersistenceController.shared.container.viewContext
-            )
-        }
+        // 알림 권한 요청과 일정 알림 예약은 추적 허용 응답 이후 LunarCalApp에서 실행합니다.
         return true
     }
 
@@ -22,7 +17,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         bindNotificationDelegate()
     }
 
-    private func bindNotificationDelegate() {
+    func bindNotificationDelegate() {
         UNUserNotificationCenter.current().delegate = self
     }
 
