@@ -89,7 +89,7 @@ final class PurchaseManager: ObservableObject {
         lastErrorMessage = nil
     }
 
-    private func refreshEntitlements() async {
+    func refreshEntitlements() async {
         var removed = false
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }

@@ -4,6 +4,7 @@ import CoreData
 struct CalendarContainerView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @StateObject private var purchaseManager = PurchaseManager.shared
+    @StateObject private var adsManager = AdsManager.shared
 
     // 연/월 + YearMonthPicker
     @State private var showingYearMonthPicker = false
@@ -33,7 +34,7 @@ struct CalendarContainerView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if !purchaseManager.isAdsRemoved {
+                if !purchaseManager.isAdsRemoved && adsManager.isReady {
                     BannerAdView(
                         adUnitID: "ca-app-pub-8998366944335616/8845674056"
                     )
