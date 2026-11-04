@@ -51,8 +51,6 @@ final class ICloudBackupManager {
             }
         }
 
-        try checkpointWAL(at: storeURL)
-
         let backupDir = ubiquity.appendingPathComponent("Documents", isDirectory: true)
         if !FileManager.default.fileExists(atPath: backupDir.path) {
             try FileManager.default.createDirectory(at: backupDir, withIntermediateDirectories: true)
@@ -68,12 +66,8 @@ final class ICloudBackupManager {
                 at: tempBackup.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            try copyStoreFiles(from: storeURL, to: tempBackup)
-
-            if FileManager.default.fileExists(atPath: dst.path) {
-                try FileManager.default.removeItem(at: dst)
-            }
-            try FileManager.default.copyItem(at: tempBackup, to: dst)
+            try writeStandaloneCopy(ofStoreAt: storeURL, to: tempBackup)
+            try coordinatedReplace(at: dst, with: tempBackup)
             try? FileManager.default.removeItem(at: tempBackup.deletingLastPathComponent())
         } catch {
             try? FileManager.default.removeItem(at: tempBackup.deletingLastPathComponent())
@@ -164,53 +158,53 @@ final class ICloudBackupManager {
         return coordinator.persistentStores.first?.url
     }
 
-    private func checkpointWAL(at storeURL: URL) throws {
-        var database: OpaquePointer?
-        guard sqlite3_open_v2(storeURL.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+    /// 앱이 열어 둔 스토어를 SQLite 백업 API로 한 파일에 통째로 복사합니다.
+    /// 최근 변경분은 -wal 파일에만 있을 수 있어 본 파일만 복사하면 일정이 빠집니다.
+    /// 복사본은 저널 모드를 DELETE로 바꿔 -wal/-shm 없이도 열리게 합니다.
+    private func writeStandaloneCopy(ofStoreAt source: URL, to destination: URL) throws {
+        var sourceDB: OpaquePointer?
+        var destinationDB: OpaquePointer?
+        defer {
+            sqlite3_close(sourceDB)
+            sqlite3_close(destinationDB)
+        }
+        guard sqlite3_open_v2(source.path, &sourceDB, SQLITE_OPEN_READONLY, nil) == SQLITE_OK,
+              sqlite3_open_v2(destination.path, &destinationDB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK,
+              let backup = sqlite3_backup_init(destinationDB, "main", sourceDB, "main") else {
             throw ICloudBackupError.backupFailed
         }
-        defer { sqlite3_close(database) }
-
-        var logFrames: Int32 = 0
-        var checkpointedFrames: Int32 = 0
-        let result = sqlite3_wal_checkpoint_v2(
-            database,
-            nil,
-            SQLITE_CHECKPOINT_TRUNCATE,
-            &logFrames,
-            &checkpointedFrames
-        )
-        guard result == SQLITE_OK else {
+        let stepResult = sqlite3_backup_step(backup, -1)
+        sqlite3_backup_finish(backup)
+        guard stepResult == SQLITE_DONE,
+              sqlite3_exec(destinationDB, "PRAGMA journal_mode=DELETE;", nil, nil, nil) == SQLITE_OK else {
             throw ICloudBackupError.backupFailed
         }
     }
 
-    private func copyStoreFiles(from source: URL, to destination: URL) throws {
-        try FileManager.default.copyItem(at: source, to: destination)
-
-        let walSource = URL(fileURLWithPath: source.path + "-wal")
-        let shmSource = URL(fileURLWithPath: source.path + "-shm")
-        let walDestination = URL(fileURLWithPath: destination.path + "-wal")
-        let shmDestination = URL(fileURLWithPath: destination.path + "-shm")
-
-        if FileManager.default.fileExists(atPath: walSource.path) {
-            try FileManager.default.copyItem(at: walSource, to: walDestination)
+    /// iCloud 폴더의 파일은 NSFileCoordinator를 거쳐 교체해야 동기화 중인 파일과 충돌하지 않습니다.
+    private func coordinatedReplace(at destination: URL, with source: URL) throws {
+        var coordinatorError: NSError?
+        var writeError: Error?
+        NSFileCoordinator().coordinate(writingItemAt: destination, options: .forReplacing, error: &coordinatorError) { writeURL in
+            do {
+                if FileManager.default.fileExists(atPath: writeURL.path) {
+                    try FileManager.default.removeItem(at: writeURL)
+                }
+                try FileManager.default.copyItem(at: source, to: writeURL)
+            } catch {
+                writeError = error
+            }
         }
-        if FileManager.default.fileExists(atPath: shmSource.path) {
-            try FileManager.default.copyItem(at: shmSource, to: shmDestination)
+        if let error = coordinatorError ?? writeError {
+            throw error
         }
     }
 
-    private func removeAuxiliaryStoreFiles(at storeURL: URL) {
-        let walURL = URL(fileURLWithPath: storeURL.path + "-wal")
-        let shmURL = URL(fileURLWithPath: storeURL.path + "-shm")
-        try? FileManager.default.removeItem(at: walURL)
-        try? FileManager.default.removeItem(at: shmURL)
-    }
-
+    /// 복원용으로 임시 폴더에 복사한 파일을 검사합니다.
+    /// Core Data 스토어는 WAL 모드라서 -shm 파일 없이 읽기 전용으로 열면 항상 실패하므로 읽기·쓰기로 엽니다.
     private func validateSQLiteFile(at url: URL) throws {
         var database: OpaquePointer?
-        guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
             throw ICloudBackupError.restoreFailed()
         }
         defer { sqlite3_close(database) }
