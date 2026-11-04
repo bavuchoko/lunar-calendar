@@ -17,6 +17,8 @@ struct LunarCalendarView: View {
     @ObservedObject var holidayManager: HolidayManager
     @Binding var selectedDate: Date
     @Binding var scheduleNavigationDay: ScheduleDayNavigation?
+    /// 값이 바뀌면 이번 달로 스크롤합니다. (헤더의 "오늘" 버튼)
+    var todayScrollToken = UUID()
 
     private let calendar = Calendar.current
     private let helper = CalendarHelper.shared
@@ -31,6 +33,7 @@ struct LunarCalendarView: View {
         VStack(spacing: 0) {
             DayOfWeekHeaderView()
 
+            ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(months, id: \.timeIntervalSince1970) { month in
@@ -65,6 +68,10 @@ struct LunarCalendarView: View {
             }
             .onChange(of: scrollMonth) { _, newValue in
                 syncCurrentDateFromScroll(newValue)
+            }
+            .onChange(of: todayScrollToken) {
+                scrollToToday(using: proxy)
+            }
             }
         }
     }
@@ -102,6 +109,26 @@ struct LunarCalendarView: View {
             withAnimation(.easeInOut(duration: 0.25), apply)
         } else {
             DispatchQueue.main.async(execute: apply)
+        }
+    }
+
+    /// scrollPosition 값은 빠르게 스크롤하면 실제 화면과 어긋날 수 있어,
+    /// 값 비교 없이 ScrollViewReader로 직접 이동합니다.
+    private func scrollToToday(using proxy: ScrollViewProxy) {
+        let today = Date()
+        let key = helper.monthKey(for: today)
+        if month(forKey: key) == nil {
+            rebuildMonths(around: today)
+        }
+
+        beginProgrammaticScroll()
+        currentDate = today
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                proxy.scrollTo(key, anchor: .top)
+            }
+            scrollMonth = key
+            endProgrammaticScroll(after: 0.45)
         }
     }
 

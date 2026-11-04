@@ -1,6 +1,12 @@
 import SwiftUI
 import CoreData
 
+/// 일정 등록·수정 화면에서 키보드 "완료" 버튼으로 입력을 끝내기 위한 포커스 대상
+enum ScheduleTextField: Hashable {
+    case title
+    case memo
+}
+
 struct ScheduleAddView: View {
     let selectedDate: Date
     @Environment(\.dismiss) private var dismiss
@@ -17,6 +23,7 @@ struct ScheduleAddView: View {
     @State private var alertTime: Date = Date()
     @State private var selectedCategoryId: UUID?
     @State private var showNotificationPermissionAlert = false
+    @FocusState private var focusedField: ScheduleTextField?
 
     private let repeatOptions = ["없음", "매주", "매월", "매년 (양력)", "매년 (음력)"]
 
@@ -30,6 +37,7 @@ struct ScheduleAddView: View {
 
                 Section(header: Text("제목")) {
                     TextField("제목을 입력하세요", text: $title)
+                        .focused($focusedField, equals: .title)
                 }
 
                 Section(header: Text("메모")) {
@@ -42,6 +50,7 @@ struct ScheduleAddView: View {
                         }
                         TextEditor(text: $memo)
                             .frame(minHeight: 100)
+                            .focused($focusedField, equals: .memo)
                     }
                 }
 
@@ -76,7 +85,12 @@ struct ScheduleAddView: View {
             }
             .navigationTitle("일정 등록")
             .environment(\.locale, Locale(identifier: "ko_KR"))
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("완료") { focusedField = nil }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("닫기") { dismiss() }
                 }

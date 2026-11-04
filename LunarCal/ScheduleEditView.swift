@@ -9,6 +9,7 @@ struct ScheduleEditView: View {
 
     @State private var title: String = ""
     @State private var memo: String = ""
+    @FocusState private var focusedField: ScheduleTextField?
     @State private var date: Date = Date()
 
     // 반복: 등록 화면처럼 전체 수정 허용 (없음/매주/매월/매년(양력)/매년(음력) + 종료일)
@@ -45,6 +46,7 @@ struct ScheduleEditView: View {
         Form {
             Section(header: Text("제목")) {
                 TextField("제목", text: $title)
+                    .focused($focusedField, equals: .title)
             }
 
             Section(header: Text("메모")) {
@@ -57,6 +59,7 @@ struct ScheduleEditView: View {
                     }
                     TextEditor(text: $memo)
                         .frame(minHeight: 100)
+                        .focused($focusedField, equals: .memo)
                 }
             }
 
@@ -97,7 +100,13 @@ struct ScheduleEditView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .environment(\.locale, Locale(identifier: "ko_KR"))
+        .scrollDismissesKeyboard(.interactively)
         .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("완료") { focusedField = nil }
+            }
+
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: { dismiss() }) {
                     HStack(spacing: 4) {

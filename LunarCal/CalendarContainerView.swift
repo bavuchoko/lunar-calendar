@@ -17,6 +17,7 @@ struct CalendarContainerView: View {
     @State private var showHolidayList = false
     @State private var selectedDate: Date = Date()
     @State private var currentDate: Date = Date()
+    @State private var todayScrollToken = UUID()
 
     @State private var showTools = false
     @State private var showScheduleList = false
@@ -30,7 +31,8 @@ struct CalendarContainerView: View {
                     showLunar: $showLunar,
                     holidayManager: holidayManager,
                     selectedDate: $selectedDate,
-                    scheduleNavigationDay: $scheduleNavigationDay
+                    scheduleNavigationDay: $scheduleNavigationDay,
+                    todayScrollToken: todayScrollToken
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -168,6 +170,17 @@ struct CalendarContainerView: View {
             .buttonStyle(.plain)
 
             Spacer()
+
+            Button {
+                selectedDate = Date()
+                todayScrollToken = UUID()
+            } label: {
+                Text("오늘")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.blue)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
