@@ -71,50 +71,124 @@ struct PersistenceController {
         }
     }
 
-    /// 스토어 파일을 교체한 뒤 Core Data를 다시 로드합니다.
-    func replaceStoreFile(with replacementURL: URL) throws {
-        let coordinator = container.persistentStoreCoordinator
-        guard let storeURL = coordinator.persistentStores.first?.url else {
-            throw ICloudBackupError.storeURLNotFound
-        }
+    /// 백업 스토어의 데이터로 현재 데이터를 바꿉니다.
+    /// 스토어 파일을 통째로 교체하면 iCloud 동기화(CloudKit)가 쓰는 스토어와 충돌하므로,
+    /// 백업 파일을 별도로 열어 객체 단위로 복사합니다. 변경 내용은 iCloud에도 그대로 동기화됩니다.
+    func importAllObjects(fromStoreAt backupURL: URL) throws {
+        let model = container.managedObjectModel
+        let backupCoordinator = NSPersistentStoreCoordinator(managedObjectModel: model)
+        let backupStore = try backupCoordinator.addPersistentStore(
+            ofType: NSSQLiteStoreType,
+            configurationName: nil,
+            at: backupURL,
+            options: [
+                // 백업은 iCloud 동기화 스토어를 복사한 것이라 기록 추적을 켜야 정상적으로 열립니다.
+                NSPersistentHistoryTrackingKey: true as NSNumber,
+                NSMigratePersistentStoresAutomaticallyOption: true as NSNumber,
+                NSInferMappingModelAutomaticallyOption: true as NSNumber
+            ]
+        )
+        defer { try? backupCoordinator.remove(backupStore) }
 
-        container.viewContext.performAndWait {
-            if container.viewContext.hasChanges {
-                try? container.viewContext.save()
+        let entities = model.entities.filter { !$0.isAbstract && $0.name != nil }
+
+        // 1. 백업에서 값만 읽어 둡니다.
+        let sourceContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        sourceContext.persistentStoreCoordinator = backupCoordinator
+        var snapshots: [ObjectSnapshot] = []
+        var readError: Error?
+        sourceContext.performAndWait {
+            do {
+                for entity in entities {
+                    let request = NSFetchRequest<NSManagedObject>(entityName: entity.name!)
+                    request.includesSubentities = false
+                    for object in try sourceContext.fetch(request) {
+                        snapshots.append(ObjectSnapshot(object: object))
+                    }
+                }
+            } catch {
+                readError = error
             }
-            container.viewContext.reset()
+        }
+        if let readError {
+            throw readError
         }
 
-        if coordinator.persistentStores.first != nil {
-            try coordinator.destroyPersistentStore(
-                at: storeURL,
-                ofType: NSSQLiteStoreType,
-                options: nil
-            )
-        }
+        // 2. 현재 데이터를 지우고 백업 내용으로 다시 만든 뒤 한 번에 저장합니다.
+        let targetContext = container.newBackgroundContext()
+        var writeError: Error?
+        targetContext.performAndWait {
+            do {
+                for entity in entities {
+                    let request = NSFetchRequest<NSManagedObject>(entityName: entity.name!)
+                    request.includesSubentities = false
+                    for object in try targetContext.fetch(request) {
+                        targetContext.delete(object)
+                    }
+                }
 
-        Self.removeAuxiliaryStoreFiles(at: storeURL)
-        try FileManager.default.copyItem(at: replacementURL, to: storeURL)
-        Self.removeAuxiliaryStoreFiles(at: storeURL)
+                var created: [URL: NSManagedObject] = [:]
+                for snapshot in snapshots {
+                    let object = NSManagedObject(entity: snapshot.entity, insertInto: targetContext)
+                    for (key, value) in snapshot.attributes {
+                        object.setValue(value, forKey: key)
+                    }
+                    created[snapshot.uri] = object
+                }
 
-        var loadError: Error?
-        let semaphore = DispatchSemaphore(value: 0)
-        container.loadPersistentStores { _, error in
-            loadError = error
-            semaphore.signal()
-        }
-        semaphore.wait()
-        if let loadError {
-            throw loadError
-        }
+                for snapshot in snapshots {
+                    guard let object = created[snapshot.uri] else { continue }
+                    for (key, uris) in snapshot.toOne {
+                        object.setValue(uris.flatMap { created[$0] }, forKey: key)
+                    }
+                    for (key, uris) in snapshot.toMany {
+                        object.setValue(NSSet(array: uris.compactMap { created[$0] }), forKey: key)
+                    }
+                }
 
-        container.viewContext.reset()
+                try targetContext.save()
+            } catch {
+                targetContext.rollback()
+                writeError = error
+            }
+        }
+        if let writeError {
+            throw writeError
+        }
     }
+}
 
-    private static func removeAuxiliaryStoreFiles(at storeURL: URL) {
-        let walURL = URL(fileURLWithPath: storeURL.path + "-wal")
-        let shmURL = URL(fileURLWithPath: storeURL.path + "-shm")
-        try? FileManager.default.removeItem(at: walURL)
-        try? FileManager.default.removeItem(at: shmURL)
+/// 컨텍스트 사이에서 객체를 옮기기 위해 값만 담아 두는 사본
+private struct ObjectSnapshot {
+    let entity: NSEntityDescription
+    let uri: URL
+    let attributes: [String: Any]
+    let toOne: [String: URL?]
+    let toMany: [String: [URL]]
+
+    init(object: NSManagedObject) {
+        entity = object.entity
+        uri = object.objectID.uriRepresentation()
+
+        var attributes: [String: Any] = [:]
+        for name in object.entity.attributesByName.keys {
+            if let value = object.value(forKey: name) {
+                attributes[name] = value
+            }
+        }
+        self.attributes = attributes
+
+        var toOne: [String: URL?] = [:]
+        var toMany: [String: [URL]] = [:]
+        for (name, relationship) in object.entity.relationshipsByName {
+            if relationship.isToMany {
+                let related = (object.value(forKey: name) as? Set<NSManagedObject>) ?? []
+                toMany[name] = related.map { $0.objectID.uriRepresentation() }
+            } else {
+                toOne[name] = (object.value(forKey: name) as? NSManagedObject)?.objectID.uriRepresentation()
+            }
+        }
+        self.toOne = toOne
+        self.toMany = toMany
     }
 }

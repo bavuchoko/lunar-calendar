@@ -198,6 +198,7 @@ private struct ToolsBackupDetailView: View {
     @State private var message: String?
     @State private var showMessage = false
     @State private var showRestoreConfirmation = false
+    @State private var isRestoring = false
     @State private var lastBackupDate = ICloudBackupManager.shared.lastBackupDate()
 
     var body: some View {
@@ -241,7 +242,13 @@ private struct ToolsBackupDetailView: View {
                 Button {
                     showRestoreConfirmation = true
                 } label: {
-                    Text("iCloud에서 복원")
+                    Group {
+                        if isRestoring {
+                            ProgressView()
+                        } else {
+                            Text("iCloud에서 복원")
+                        }
+                    }
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
@@ -249,6 +256,7 @@ private struct ToolsBackupDetailView: View {
                         .background(Color(UIColor.systemGray6))
                         .clipShape(Capsule())
                 }
+                .disabled(isRestoring)
                 .padding(.horizontal, 22)
                 .padding(.bottom, 24)
             }
@@ -279,12 +287,18 @@ private struct ToolsBackupDetailView: View {
     }
 
     private func performRestore() {
-        do {
-            try ICloudBackupManager.shared.restoreFromICloud(viewContext: viewContext)
-            lastBackupDate = ICloudBackupManager.shared.lastBackupDate()
-            show("복원이 완료됐어요.")
-        } catch {
-            show(error.localizedDescription)
+        isRestoring = true
+        Task {
+            defer { isRestoring = false }
+            do {
+                try await ICloudBackupManager.shared.restoreFromICloud()
+                lastBackupDate = ICloudBackupManager.shared.lastBackupDate()
+                // 복원된 일정 기준으로 알림을 다시 예약합니다.
+                NotificationManager.shared.rescheduleAll(in: viewContext)
+                show("복원이 완료됐어요.")
+            } catch {
+                show(error.localizedDescription)
+            }
         }
     }
 
