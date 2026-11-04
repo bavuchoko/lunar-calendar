@@ -18,6 +18,7 @@ struct CalendarContainerView: View {
     @State private var selectedDate: Date = Date()
     @State private var currentDate: Date = Date()
     @State private var todayScrollToken = UUID()
+    @State private var isBannerLoaded = false
 
     @State private var showTools = false
     @State private var showScheduleList = false
@@ -32,15 +33,21 @@ struct CalendarContainerView: View {
                     holidayManager: holidayManager,
                     selectedDate: $selectedDate,
                     scheduleNavigationDay: $scheduleNavigationDay,
-                    todayScrollToken: todayScrollToken
+                    todayScrollToken: todayScrollToken,
+                    isBannerVisible: isBannerVisible
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if !purchaseManager.isAdsRemoved && adsManager.isReady {
+                if showsBannerSlot {
+                    // 배너 자체는 60 높이를 유지해야 광고를 요청할 수 있습니다(0이면 크기 오류).
+                    // 광고를 받기 전에는 바깥 틀만 0으로 접어 빈 공간이 보이지 않게 합니다.
                     BannerAdView(
-                        adUnitID: "ca-app-pub-8998366944335616/8845674056"
+                        adUnitID: "ca-app-pub-8998366944335616/8845674056",
+                        isLoaded: $isBannerLoaded
                     )
                     .frame(height: 60)
+                    .frame(height: isBannerLoaded ? 60 : 0, alignment: .top)
+                    .clipped()
                 }
 
                 HStack {
@@ -148,6 +155,15 @@ struct CalendarContainerView: View {
             currentYear = year
             currentMonth = cal.component(.month, from: currentDate)
         }
+    }
+
+    private var showsBannerSlot: Bool {
+        !purchaseManager.isAdsRemoved && adsManager.isReady
+    }
+
+    /// 광고가 실제로 보여 달력 높이가 줄어든 상태인지
+    private var isBannerVisible: Bool {
+        showsBannerSlot && isBannerLoaded
     }
 
     private var calendarHeader: some View {

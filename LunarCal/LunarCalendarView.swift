@@ -19,6 +19,8 @@ struct LunarCalendarView: View {
     @Binding var scheduleNavigationDay: ScheduleDayNavigation?
     /// 값이 바뀌면 이번 달로 스크롤합니다. (헤더의 "오늘" 버튼)
     var todayScrollToken = UUID()
+    /// 광고가 나타나거나 사라지면 달력 높이가 바뀌는데, 이때 LazyVStack이 엉뚱한 달로 밀리지 않게 다시 맞춥니다.
+    var isBannerVisible = false
 
     private let calendar = Calendar.current
     private let helper = CalendarHelper.shared
@@ -71,6 +73,9 @@ struct LunarCalendarView: View {
             }
             .onChange(of: todayScrollToken) {
                 scrollToToday(using: proxy)
+            }
+            .onChange(of: isBannerVisible) {
+                keepCurrentMonth(using: proxy)
             }
             }
         }
@@ -129,6 +134,18 @@ struct LunarCalendarView: View {
             }
             scrollMonth = key
             endProgrammaticScroll(after: 0.45)
+        }
+    }
+
+    /// 높이가 바뀌기 직전에 보고 있던 달을 그대로 유지합니다.
+    /// 높이 변경 중에 생기는 스크롤 값은 무시하고, 레이아웃이 끝난 뒤 그 달로 다시 이동합니다.
+    private func keepCurrentMonth(using proxy: ScrollViewProxy) {
+        let key = helper.monthKey(for: currentDate)
+        beginProgrammaticScroll()
+        DispatchQueue.main.async {
+            proxy.scrollTo(key, anchor: .top)
+            scrollMonth = key
+            endProgrammaticScroll(after: 0.3)
         }
     }
 
